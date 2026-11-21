@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantern Lane — Spot the Difference</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0b0f1e;
+    color: #f2e8d5;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 18px 20px 28px; }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px;
+    padding: 6px 2px 14px;
+  }
+  h1 { font-size: 28px; margin: 0; letter-spacing: 0.5px; color: #ffd166; }
+  h1 span { color: #f2e8d5; font-size: 16px; font-weight: 400; margin-left: 8px; }
+  .hud { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; align-items: center; }
+  .stat {
+    background: #171d33; border: 1px solid #2c3554; border-radius: 10px;
+    padding: 8px 14px; font-size: 16px; font-weight: 600; min-width: 108px; text-align: center;
+  }
+  .stat small { display: block; font-size: 11px; font-weight: 400; color: #9aa5c4; text-transform: uppercase; letter-spacing: 1px; }
+  #timer.low { color: #ff6b6b; border-color: #ff6b6b; }
+  button {
+    font: inherit; font-weight: 700; cursor: pointer; border: none; border-radius: 10px;
+    padding: 10px 18px; color: #1a1206; background: #ffd166;
+  }
+  button:hover { background: #ffcf5c; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.ghost { background: transparent; color: #ffd166; border: 1px solid #ffd166; }
+  .panels { position: relative; display: flex; gap: 16px; }
+  .panels.shake { animation: shake 0.35s ease; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+  }
+  .panel { flex: 1 1 0; min-width: 0; position: relative; }
+  .panel .tag {
+    position: absolute; top: 10px; left: 10px; z-index: 3;
+    background: rgba(11, 15, 30, 0.75); border: 1px solid #3a4568; color: #cdd6f4;
+    font-size: 12px; font-weight: 700; letter-spacing: 2px; padding: 4px 10px; border-radius: 999px;
+  }
+  .panel svg {
+    display: block; width: 100%; height: auto; border-radius: 14px;
+    border: 2px solid #2c3554; cursor: crosshair; background: #101736;
+  }
+  .panel svg.wrong { border-color: #ff6b6b; }
+  .marker circle { fill: rgba(46, 204, 113, 0.18); stroke: #2ecc71; stroke-width: 4; }
+  .marker text { fill: #2ecc71; font-size: 30px; font-weight: 800; text-anchor: middle; }
+  .pulse-ring { transform-box: fill-box; transform-origin: center; animation: pulse 0.6s ease-out infinite; }
+  @keyframes pulse {
+    0% { transform: scale(0.7); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+  .pulse-ring circle { fill: none; stroke: #ffd166; stroke-width: 5; }
+  #flash {
+    position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    background: rgba(255, 60, 60, 0.22); border-radius: 14px; opacity: 0; transition: opacity 0.15s;
+  }
+  #flash.on { opacity: 1; }
+  .overlay {
+    position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+    background: rgba(5, 8, 18, 0.86); border-radius: 14px; padding: 20px;
+  }
+  .overlay[hidden] { display: none; }
+  .card { max-width: 560px; text-align: center; }
+  .card h2 { font-size: 40px; margin: 0 0 6px; color: #ffd166; }
+  .card p { font-size: 17px; line-height: 1.55; color: #d8def2; margin: 8px 0; }
+  .card .big { font-size: 22px; font-weight: 700; color: #fff; }
+  .card button { font-size: 19px; padding: 13px 34px; margin-top: 14px; }
+  .howto { text-align: left; display: inline-block; margin: 6px auto 0; }
+  .howto li { margin: 5px 0; font-size: 16px; }
+  .keys { font-size: 13px; color: #9aa5c4; margin-top: 16px; }
+  kbd {
+    background: #232a45; border: 1px solid #3a4568; border-bottom-width: 3px;
+    border-radius: 6px; padding: 1px 7px; font-family: inherit; color: #f2e8d5;
+  }
+  footer { text-align: center; color: #7c86a8; font-size: 13px; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Lantern Lane <span>Spot the Difference</span></h1>
+    <div class="hud">
+      <div class="stat"><small>Time</small><span id="timer">03:00</span></div>
+      <div class="stat"><small>Score</small><span id="score">Score: 0</span></div>
+      <div class="stat"><small>Found</small><span id="counter">Found 0 / 8</span></div>
+      <button id="hintBtn" type="button">Hint (3 left)</button>
+    </div>
+  </header>
+
+  <div class="panels" id="panels">
+    <div class="panel"><span class="tag">LEFT</span><svg id="svgLeft" viewBox="0 0 560 420" role="img" aria-label="Lantern Lane night market, left picture"></svg></div>
+    <div class="panel"><span class="tag">RIGHT</span><svg id="svgRight" viewBox="0 0 560 420" role="img" aria-label="Lantern Lane night market, right picture"></svg></div>
+    <div id="flash"></div>
+    <div class="overlay" id="overlay"><div class="card" id="overlayCard"></div></div>
+  </div>
+
+  <footer>Eight differences hide between the two pictures. Click a difference in either panel to mark it. Wrong clicks cost 25 points.</footer>
+</div>
+
+<script type="module">
+// Lantern Lane — a spot-the-difference hunt in a cosy night market.
+// One inline SVG scene is drawn twice (left / right); eight small changes
+// hide between the two panels. All art is original vector work drawn here.
+
+const TOTAL = 8;
+const ROUND_SECONDS = 180;
+const POINTS_FOUND = 100;
+const POINTS_WRONG = 25;
+const POINTS_HINT = 50;
+const TIME_BONUS_PER_SECOND = 5;
+const MAX_HINTS = 3;
+
+// Each difference: where it sits in panel coordinates (viewBox 560 x 420)
+// and how wide a click may land from its centre and still count.
+const DIFFERENCES = [
+  { id: 'lantern',  name: 'a paper lantern',      x: 470, y: 92,  r: 30 },
+  { id: 'tail',     name: "the cat's tail",       x: 152, y: 338, r: 32 },
+  { id: 'window',   name: 'a lit window',         x: 292, y: 172, r: 30 },
+  { id: 'star',     name: 'a star in the sky',    x: 90,  y: 50,  r: 24 },
+  { id: 'sign',     name: 'the shop sign',        x: 272, y: 118, r: 32 },
+  { id: 'flower',   name: 'a flower',             x: 355, y: 360, r: 26 },
+  { id: 'bird',     name: 'a bird on the wire',   x: 330, y: 60,  r: 24 },
+  { id: 'umbrella', name: "the vendor's umbrella", x: 465, y: 238, r: 34 },
+];
+
+const state = {
+  screen: 'start', // start | play | win | lose
+  found: new Set(),
+  score: 0,
+  timeLeft: ROUND_SECONDS,
+  hintsLeft: MAX_HINTS,
+  timerId: null,
+  frozen: false, // shot modes freeze the clock so screenshots are reproducible
+};
+
+const svgLeft = document.getElementById('svgLeft');
+const svgRight = document.getElementById('svgRight');
+const panelsEl = document.getElementById('panels');
+const flashEl = document.getElementById('flash');
+const overlayEl = document.getElementById('overlay');
+const overlayCard = document.getElementById('overlayCard');
+const timerEl = document.getElementById('timer');
+const scoreEl = document.getElementById('score');
+const counterEl = document.getElementById('counter');
+const hintBtn = document.getElementById('hintBtn');
+
+// ---------------------------------------------------------------- the scene
+// buildScene draws the whole night-market street for one panel.
+// `side` is 'left' or 'right'; the eight differences switch on it.
+function buildScene(side, uid) {
+  const right = side === 'right';
+  const sky = `sky${uid}`, glow = `glow${uid}`;
+  const star = right ? '' : `<circle cx="90" cy="50" r="3.5" fill="#fff7d6"><animate attributeName="opacity" values="1;0.4;1" dur="2.4s" repeatCount="indefinite"/></circle>`;
+  const lantern = right ? '' : `
+    <g>
+      <line x1="470" y1="58" x2="470" y2="70" stroke="#8a6d3b" stroke-width="2"/>
+      <ellipse cx="470" cy="92" rx="17" ry="21" fill="#e8543f" stroke="#a83a28" stroke-width="2"/>
+      <rect x="462" y="68" width="16" height="5" rx="2" fill="#f4c542"/>
+      <rect x="462" y="110" width="16" height="5" rx="2" fill="#f4c542"/>
+      <text x="470" y="99" text-anchor="middle" font-size="15" fill="#ffe9a8" font-family="inherit">福</text>
+    </g>`;
+  const bird = right ? '' : `
+    <g fill="#1c2338" stroke="#1c2338" stroke-width="2">
+      <ellipse cx="330" cy="60" rx="9" ry="6"/>
+      <circle cx="338" cy="56" r="4"/>
+      <path d="M322 58 Q314 52 310 56" fill="none"/>
+      <path d="M322 62 Q314 66 311 62" fill="none"/>
+    </g>`;
+  const windowFill = right ? '#141b31' : '#ffd76a';
+  const windowGlow = right ? '' : `<rect x="282" y="150" width="44" height="46" fill="#ffd76a" opacity="0.25"/>`;
+  const signWord = right ? 'TOY' : 'TEA';
+  const flowerColour = right ? '#ffd23e' : '#e84a5f';
+  const umbrella = right
+    ? `<path d="M410 240 Q465 196 520 240 Q465 254 410 240 Z" fill="#c0392b" stroke="#7e241a" stroke-width="2"/>`
+    : `<path d="M410 240 Q465 196 520 240 Q465 254 410 240 Z" fill="#c0392b" stroke="#7e241a" stroke-width="2"/>
+       <path d="M437 240 Q447 206 465 200 Q447 226 437 240 Z" fill="#f6ead2"/>
+       <path d="M493 240 Q483 206 465 200 Q483 226 493 240 Z" fill="#f6ead2"/>`;
+  const tail = right
+    ? `<path d="M132 372 Q158 378 166 398 Q150 400 138 388 Q128 380 132 372 Z" fill="#3a3f55"/>`
+    : `<path d="M132 356 Q158 340 162 316 Q148 314 140 330 Q132 344 132 356 Z" fill="#3a3f55"/>`;
+
+  return `
+  <defs>
+    <linearGradient id="${sky}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2547"/><stop offset="1" stop-color="#0d1226"/>
+    </linearGradient>
+    <radialGradient id="${glow}" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffca6a" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffca6a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="560" height="420" fill="url(#${sky})"/>
+  <circle cx="488" cy="52" r="26" fill="#f5e9c8"/>
+  <circle cx="480" cy="46" r="5" fill="#e2d3a8"/>
+  <circle cx="496" cy="60" r="4" fill="#e2d3a8"/>
+  <circle cx="58" cy="92" r="2.5" fill="#fff7d6"/><circle cx="150" cy="38" r="2" fill="#fff7d6"/>
+  <circle cx="212" cy="72" r="2.5" fill="#fff7d6"/><circle cx="262" cy="34" r="2" fill="#fff7d6"/>
+  <circle cx="420" cy="42" r="2" fill="#fff7d6"/><circle cx="522" cy="112" r="2.5" fill="#fff7d6"/>
+  <circle cx="38" cy="150" r="2" fill="#fff7d6"/><circle cx="352" cy="96" r="2" fill="#fff7d6"/>
+  ${star}
+  <line x1="0" y1="62" x2="560" y2="50" stroke="#232a45" stroke-width="2"/>
+  ${bird}
+  <path d="M0 96 Q280 126 560 90" fill="none" stroke="#3a3350" stroke-width="2"/>
+  ${[70, 150, 235, 320, 405, 490].map((x, i) => {
+    const y = 96 + Math.sin((x / 560) * Math.PI) * 12;
+    const c = ['#ffd166', '#ff8a7a', '#9be7c4', '#ffd166', '#ff8a7a', '#9be7c4'][i];
+    return `<g><line x1="${x}" y1="${y}" x2="${x}" y2="${y + 9}" stroke="#3a3350" stroke-width="1.5"/><circle cx="${x}" cy="${y + 14}" r="5" fill="${c}"/></g>`;
+  }).join('')}
+  <g>
+    <rect x="25" y="170" width="150" height="250" fill="#2b3350"/>
+    <polygon points="15,172 100,138 185,172" fill="#232a45"/>
+    <rect x="45" y="195" width="34" height="42" fill="#ffd76a"/>
+    <rect x="45" y="195" width="34" height="42" fill="none" stroke="#1a2036" stroke-width="2"/>
+    <rect x="115" y="195" width="34" height="42" fill="#1c2340"/>
+    <rect x="45" y="262" width="34" height="42" fill="#1c2340"/>
+    <rect x="115" y="262" width="34" height="42" fill="#ffd76a"/>
+    <rect x="60" y="330" width="80" height="90" fill="#1a2036"/>
+  </g>
+  <g>
+    <rect x="195" y="150" width="170" height="270" fill="#3a2f4d"/>
+    <rect x="212" y="100" width="120" height="42" rx="6" fill="#7a4a2b" stroke="#5d3419" stroke-width="2"/>
+    <text x="272" y="130" text-anchor="middle" font-size="27" font-weight="800" letter-spacing="3" fill="#ffe9b0" font-family="inherit">${signWord}</text>
+    ${windowGlow}
+    <rect x="282" y="150" width="44" height="46" fill="${windowFill}" stroke="#1a2036" stroke-width="2"/>
+    <line x1="304" y1="150" x2="304" y2="196" stroke="#1a2036" stroke-width="2"/>
+    <line x1="282" y1="173" x2="326" y2="173" stroke="#1a2036" stroke-width="2"/>
+    <rect x="215" y="168" width="40" height="44" fill="#ffd76a" stroke="#1a2036" stroke-width="2"/>
+    <rect x="215" y="232" width="150" height="14" fill="#e8543f"/>
+    <rect x="215" y="232" width="150" height="14" fill="none" stroke="#a83a28" stroke-width="1"/>
+    ${[215, 240, 265, 290, 315, 340].map((x) => `<line x1="${x}" y1="232" x2="${x}" y2="246" stroke="#f6ead2" stroke-width="4"/>`).join('')}
+    <rect x="225" y="258" width="60" height="34" fill="#241d33"/>
+    <rect x="300" y="258" width="55" height="34" fill="#241d33"/>
+    <rect x="215" y="292" width="150" height="128" fill="#2c2340"/>
+  </g>
+  <g>
+    <rect x="385" y="140" width="150" height="280" fill="#26304a"/>
+    <polygon points="378,142 460,110 542,142" fill="#1f2740"/>
+    <rect x="405" y="170" width="36" height="44" fill="#ffd76a"/>
+    <rect x="470" y="170" width="36" height="44" fill="#1c2340"/>
+    <rect x="405" y="240" width="36" height="44" fill="#1c2340"/>
+    <rect x="470" y="240" width="36" height="44" fill="#ffd76a"/>
+    <rect x="430" y="330" width="60" height="90" fill="#1a2036"/>
+  </g>
+  <ellipse cx="470" cy="120" rx="70" ry="46" fill="url(#${glow})"/>
+  ${lantern}
+  <g>
+    <line x1="60" y1="128" x2="60" y2="140" stroke="#8a6d3b" stroke-width="2"/>
+    <ellipse cx="60" cy="160" rx="14" ry="17" fill="#e8543f" stroke="#a83a28" stroke-width="2"/>
+  </g>
+  <g>
+    <line x1="200" y1="132" x2="200" y2="144" stroke="#8a6d3b" stroke-width="2"/>
+    <ellipse cx="200" cy="164" rx="14" ry="17" fill="#f4a259" stroke="#a86a28" stroke-width="2"/>
+  </g>
+  <rect x="0" y="382" width="560" height="38" fill="#141a2e"/>
+  <g>
+    <ellipse cx="118" cy="392" rx="34" ry="12" fill="#3a3f55"/>
+    <circle cx="112" cy="368" r="17" fill="#3a3f55"/>
+    <polygon points="100,354 104,342 112,354" fill="#3a3f55"/>
+    <polygon points="116,354 122,342 126,355" fill="#3a3f55"/>
+    ${tail}
+    <circle cx="106" cy="364" r="2" fill="#ffd166"/>
+    <circle cx="118" cy="364" r="2" fill="#ffd166"/>
+  </g>
+  <g>
+    <polygon points="338,378 372,378 366,402 344,402" fill="#8a5a3b"/>
+    <line x1="355" y1="378" x2="355" y2="356" stroke="#4e9b5f" stroke-width="3"/>
+    ${[0, 1, 2, 3, 4].map((i) => {
+      const a = (i / 5) * Math.PI * 2;
+      return `<circle cx="${355 + Math.cos(a) * 9}" cy="${352 + Math.sin(a) * 9}" r="6" fill="${flowerColour}"/>`;
+    }).join('')}
+    <circle cx="355" cy="352" r="5" fill="#fff3c4"/>
+  </g>
+  <g>
+    <line x1="465" y1="238" x2="465" y2="322" stroke="#6b4a2f" stroke-width="4"/>
+    ${umbrella}
+    <circle cx="465" cy="200" r="5" fill="#f4c542"/>
+    <circle cx="465" cy="288" r="14" fill="#f2c9a0"/>
+    <path d="M465 288 Q448 296 442 312 L488 312 Q482 296 465 288 Z" fill="#7a4a2b"/>
+    <rect x="400" y="318" width="130" height="64" rx="6" fill="#6b4a2f"/>
+    <circle cx="425" cy="308" r="8" fill="#e8543f"/><circle cx="448" cy="306" r="8" fill="#f4a259"/>
+    <circle cx="472" cy="308" r="8" fill="#9be7c4"/><circle cx="496" cy="306" r="8" fill="#e84a5f"/>
+  </g>`;
+}
+
+function markerMarkup(d) {
+  return `<g class="marker"><circle cx="${d.x}" cy="${d.y}" r="26"/><text x="${d.x}" y="${d.y + 10}">✓</text></g>`;
+}
+
+function drawPanels() {
+  svgLeft.innerHTML = buildScene('left', 'L') + `<g id="marksL"></g><g id="pulseL"></g>`;
+  svgRight.innerHTML = buildScene('right', 'R') + `<g id="marksR"></g><g id="pulseR"></g>`;
+  for (const index of state.found) {
+    const d = DIFFERENCES[index];
+    document.getElementById('marksL').insertAdjacentHTML('beforeend', markerMarkup(d));
+    document.getElementById('marksR').insertAdjacentHTML('beforeend', markerMarkup(d));
+  }
+}
+
+function refreshHud() {
+  const m = String(Math.floor(state.timeLeft / 60)).padStart(2, '0');
+  const s = String(state.timeLeft % 60).padStart(2, '0');
+  timerEl.textContent = `${m}:${s}`;
+  timerEl.parentElement.classList.toggle('low', state.timeLeft <= 30 && state.screen === 'play');
+  scoreEl.textContent = `Score: ${state.score}`;
+  counterEl.textContent = `Found ${state.found.size} / ${TOTAL}`;
+  hintBtn.textContent = `Hint (${state.hintsLeft} left)`;
+  hintBtn.disabled = state.screen !== 'play' || state.hintsLeft <= 0;
+}
+
+// ---------------------------------------------------------------- screens
+function showOverlay(html) {
+  overlayCard.innerHTML = html;
+  overlayEl.hidden = false;
+}
+function hideOverlay() { overlayEl.hidden = true; }
+
+function startScreen() {
+  showOverlay(`
+    <h2>Lantern Lane</h2>
+    <p class="big">Spot the Difference</p>
+    <p>Two pictures of the same night-market street hang side by side — but
+    <b>8 things</b> are different. Find them all before the lanterns burn out.</p>
+    <ul class="howto">
+      <li>Click a difference in <b>either</b> picture to mark it on both.</li>
+      <li>Each find is <b>+100</b> points. A wrong click costs <b>25</b>.</li>
+      <li>Stuck? A hint shows you one difference for <b>50</b> points.</li>
+      <li>Finish fast: every second left is worth <b>5</b> bonus points.</li>
+    </ul>
+    <button id="startBtn" type="button">Start the Hunt</button>
+    <p class="keys">Keys: <kbd>H</kbd> hint &nbsp;·&nbsp; <kbd>R</kbd> restart</p>`);
+  document.getElementById('startBtn').addEventListener('click', startGame);
+}
+
+function winScreen() {
+  const base = state.found.size * POINTS_FOUND;
+  const bonus = state.timeLeft * TIME_BONUS_PER_SECOND;
+  showOverlay(`
+    <h2>You found them all!</h2>
+    <p class="big">Final score: ${state.score}</p>
+    <p>8 differences × 100 = ${base} points<br>
+    Time bonus: ${state.timeLeft}s × 5 = ${bonus} points</p>
+    <p>Every lantern, star and tail in Lantern Lane matches again.</p>
+    <button id="againBtn" type="button">Play Again</button>`);
+  document.getElementById('againBtn').addEventListener('click', startGame);
+}
+
+function loseScreen() {
+  showOverlay(`
+    <h2>Time's up!</h2>
+    <p class="big">You found ${state.found.size} of ${TOTAL} differences.</p>
+    <p>${TOTAL - state.found.size} still hide in the lantern light. Score: ${state.score}</p>
+    <button id="againBtn" type="button">Try Again</button>`);
+  document.getElementById('againBtn').addEventListener('click', startGame);
+}
+
+// ---------------------------------------------------------------- play
+function stopTimer() {
+  if (state.timerId !== null) { clearInterval(state.timerId); state.timerId = null; }
+}
+
+function startGame() {
+  stopTimer();
+  state.screen = 'play';
+  state.found = new Set();
+  state.score = 0;
+  state.timeLeft = ROUND_SECONDS;
+  state.hintsLeft = MAX_HINTS;
+  hideOverlay();
+  drawPanels();
+  refreshHud();
+  if (!state.frozen) {
+    state.timerId = setInterval(() => {
+      state.timeLeft -= 1;
+      if (state.timeLeft <= 0) {
+        state.timeLeft = 0;
+        refreshHud();
+        endGame(false);
+      } else {
+        refreshHud();
+      }
+    }, 1000);
+  }
+}
+
+function endGame(won) {
+  stopTimer();
+  if (won) {
+    state.score += state.timeLeft * TIME_BONUS_PER_SECOND;
+    state.screen = 'win';
+    refreshHud();
+    winScreen();
+  } else {
+    state.screen = 'lose';
+    refreshHud();
+    loseScreen();
+  }
+}
+
+function svgPoint(svg, event) {
+  const rect = svg.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * 560,
+    y: ((event.clientY - rect.top) / rect.height) * 420,
+  };
+}
+
+function onPanelClick(event) {
+  if (state.screen !== 'play') return;
+  const p = svgPoint(event.currentTarget, event);
+  for (let i = 0; i < DIFFERENCES.length; i++) {
+    if (state.found.has(i)) continue;
+    const d = DIFFERENCES[i];
+    const dist = Math.hypot(p.x - d.x, p.y - d.y);
+    if (dist <= d.r) {
+      state.found.add(i);
+      state.score += POINTS_FOUND;
+      drawPanels();
+      refreshHud();
+      if (state.found.size === TOTAL) endGame(true);
+      return;
+    }
+  }
+  // No difference under the click: a wrong guess.
+  state.score = Math.max(0, state.score - POINTS_WRONG);
+  refreshHud();
+  panelsEl.classList.remove('shake');
+  void panelsEl.offsetWidth; // restart the shake animation
+  panelsEl.classList.add('shake');
+  flashEl.classList.add('on');
+  setTimeout(() => flashEl.classList.remove('on'), 180);
+}
+
+function useHint() {
+  if (state.screen !== 'play' || state.hintsLeft <= 0) return;
+  const next = DIFFERENCES.findIndex((_, i) => !state.found.has(i));
+  if (next === -1) return;
+  state.hintsLeft -= 1;
+  state.score = Math.max(0, state.score - POINTS_HINT);
+  const d = DIFFERENCES[next];
+  const ring = `<g class="pulse-ring"><circle cx="${d.x}" cy="${d.y}" r="26"/></g>`;
+  document.getElementById('pulseL').innerHTML = ring;
+  document.getElementById('pulseR').innerHTML = ring;
+  setTimeout(() => {
+    document.getElementById('pulseL').innerHTML = '';
+    document.getElementById('pulseR').innerHTML = '';
+  }, 2000);
+  refreshHud();
+}
+
+svgLeft.addEventListener('click', onPanelClick);
+svgRight.addEventListener('click', onPanelClick);
+hintBtn.addEventListener('click', useHint);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'h' || event.key === 'H') useHint();
+  if (event.key === 'r' || event.key === 'R') startGame();
+});
+
+// ---------------------------------------------------------------- shot modes
+// ?shot=start | play | end renders a fixed frame with no interaction, so
+// screenshots are reproducible. Without ?shot the game opens on the title.
+function stageShot(name) {
+  state.frozen = true;
+  if (name === 'play') {
+    state.screen = 'play';
+    state.found = new Set([0, 1, 2]);
+    state.score = 300;
+    state.timeLeft = 151; // 02:31
+    state.hintsLeft = 3;
+    hideOverlay();
+    drawPanels();
+    refreshHud();
+  } else if (name === 'end') {
+    state.screen = 'win';
+    state.found = new Set([0, 1, 2, 3, 4, 5, 6, 7]);
+    state.timeLeft = 97;
+    state.score = 800 + 97 * TIME_BONUS_PER_SECOND; // 1285
+    state.hintsLeft = 3;
+    drawPanels();
+    refreshHud();
+    winScreen();
+  } else {
+    state.screen = 'start';
+    drawPanels();
+    refreshHud();
+    startScreen();
+  }
+}
+
+const shot = new URLSearchParams(window.location.search).get('shot');
+if (shot) stageShot(shot);
+else { drawPanels(); refreshHud(); startScreen(); }
+</script>
+</body>
+</html>
